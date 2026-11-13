@@ -1,0 +1,15 @@
+@import "tailwindcss";
+
+@theme {
+  --color-cauca-azul: #0f172a;
+  --color-cauca-amarillo: #facc15;
+  --color-cauca-fondo: #f8fafc;
+}
+
+body {
+  background-color: var(--color-cauca-fondo);
+  font-family: system-ui, -apple-system, sans-serif;
+}
+
+/* IMPORTAMOS NUESTRAS CLASES PERSONALIZADAS */
+@import "./css/styles.css";
