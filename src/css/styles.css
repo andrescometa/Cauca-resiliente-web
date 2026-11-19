@@ -270,6 +270,14 @@
   @apply rounded-md bg-slate-100 px-2 py-1 text-[11px] font-bold text-slate-600;
 }
 
+.boton-socorrista-ocupado {
+  @apply inline-flex cursor-default items-center justify-center gap-1.5 rounded-lg bg-orange-100 px-3 py-2 text-xs font-bold text-orange-700;
+}
+
+.aviso-socorrista {
+  @apply mt-2 rounded-lg border border-orange-200 bg-orange-50 px-2.5 py-1.5 text-[11px] font-medium text-orange-700;
+}
+
 .contenedor-mapa {
   @apply h-[540px] w-full overflow-hidden rounded-xl border border-gray-200;
 }

@@ -1,8 +1,11 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
+  activasPorSocorrista,
   api,
+  disponibleParaAsignar,
   esAdmin,
   esSocorrista,
+  estadoRescate,
   mensajeError,
   rolVisible,
 } from '../api';
@@ -69,6 +72,7 @@ export default function Panel({ irA }) {
 
   const resumen = useMemo(() => {
     const socorristas = usuarios.filter(esSocorrista);
+    const asignadasPorSocorrista = activasPorSocorrista(solicitudes);
     const activas = solicitudes.filter((sos) => ESTADOS_ACTIVOS.has(sos.estado_solicitud));
     const pendientes = solicitudes.filter((sos) => sos.estado_solicitud === 'Pendiente');
     const enCamino = solicitudes.filter((sos) =>
@@ -78,8 +82,8 @@ export default function Panel({ irA }) {
       ['Atendido', 'Finalizado'].includes(sos.estado_solicitud)
     );
     const alertasActivas = alertas.filter((alerta) => alerta.activa !== false);
-    const disponibles = socorristas.filter(
-      (usuario) => String(usuario.estado_operativo || '').toLowerCase() === 'disponible'
+    const disponibles = socorristas.filter((usuario) =>
+      disponibleParaAsignar(asignadasPorSocorrista, usuario)
     );
     const ciudadanos = usuarios.filter((usuario) => rolVisible(usuario) === 1);
     const estudiantes = usuarios.filter((usuario) => rolVisible(usuario) === 2);
@@ -90,6 +94,7 @@ export default function Panel({ irA }) {
 
     return {
       socorristas,
+      asignadasPorSocorrista,
       activas,
       pendientes,
       enCamino,
@@ -233,11 +238,16 @@ export default function Panel({ irA }) {
           <div className="flex flex-col gap-3">
             {resumen.socorristas.length > 0 ? (
               resumen.socorristas.map((socorrista) => {
-                const asignadas = resumen.activas.filter(
-                  (sos) => Number(sos.socorrista_id) === Number(socorrista._id)
-                ).length;
-                const disponible =
-                  String(socorrista.estado_operativo || '').toLowerCase() === 'disponible';
+                const asignadas =
+                  resumen.asignadasPorSocorrista.get(Number(socorrista._id)) || [];
+                const ocupado = asignadas.length > 0;
+                const textoEstado = ocupado
+                  ? estadoRescate(asignadas)
+                  : String(socorrista.estado_operativo || '').trim() || 'Disponible';
+                const disponible = disponibleParaAsignar(
+                  resumen.asignadasPorSocorrista,
+                  socorrista
+                );
                 return (
                   <button
                     key={socorrista._id}
@@ -252,10 +262,14 @@ export default function Panel({ irA }) {
                     </div>
                     <div className="shrink-0 text-right">
                       <span className={disponible ? 'insignia-disponible' : 'insignia-ocupado'}>
-                        {socorrista.estado_operativo || 'Sin estado'}
+                        {textoEstado}
                       </span>
                       <p className="mt-1 text-[10px] text-gray-400">
-                        {asignadas} SOS activa{asignadas === 1 ? '' : 's'}
+                        {asignadas.length
+                          ? `${asignadas.length} rescate${asignadas.length === 1 ? '' : 's'} activo${
+                              asignadas.length === 1 ? '' : 's'
+                            }`
+                          : 'Sin rescates activos'}
                       </p>
                     </div>
                   </button>

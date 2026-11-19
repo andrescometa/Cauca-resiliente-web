@@ -1,8 +1,11 @@
 import { useEffect, useMemo, useState } from 'react';
 import {
+  activasPorSocorrista,
   api,
+  disponibleParaAsignar,
   enlaceGoogleMaps,
   esSocorrista,
+  estaOcupado,
   mensajeError,
 } from '../api';
 import Icono from '../components/Icono';
@@ -81,6 +84,18 @@ export default function Solicitudes({ irA }) {
 
   const socorristas = useMemo(() => usuarios.filter(esSocorrista), [usuarios]);
 
+  const asignadasPorSocorrista = useMemo(
+    () => activasPorSocorrista(solicitudes),
+    [solicitudes]
+  );
+
+  // Solo se ofrecen socorristas sin rescates activos: uno atiende una SOS a la vez.
+  const socorristasDisponibles = useMemo(
+    () =>
+      socorristas.filter((socorrista) => disponibleParaAsignar(asignadasPorSocorrista, socorrista)),
+    [socorristas, asignadasPorSocorrista]
+  );
+
   const solicitudesFiltradas = useMemo(() => {
     if (filtro === 'todas') return solicitudes;
     if (filtro === 'activas') {
@@ -107,6 +122,24 @@ export default function Solicitudes({ irA }) {
     setMensaje(null);
 
     try {
+      const socorrista = usuariosPorId.get(socorristaId);
+
+      // Comprobación con datos recién traídos: entre dos administradores (o
+      // dos pestañas) alguien pudo asignarle un rescate mientras tanto.
+      const frescas = await api.get('/api/solicitudes');
+      const ocupadosAhora = activasPorSocorrista(frescas.data?.solicitudes || []);
+
+      if (estaOcupado(ocupadosAhora, socorristaId)) {
+        setMensaje({
+          tipo: 'error',
+          texto: `${
+            socorrista ? `${socorrista.nombres} ${socorrista.apellidos}` : 'Ese socorrista'
+          } ya está atendiendo un rescate. Finalízalo antes de asignarle otro.`,
+        });
+        await cargar();
+        return;
+      }
+
       try {
         await api.post('/api/asignaciones', {
           solicitud_id: sos._id,
@@ -124,12 +157,11 @@ export default function Solicitudes({ irA }) {
         estado_solicitud: 'En camino',
       });
 
-      const socorrista = usuariosPorId.get(socorristaId);
       setMensaje({
         tipo: 'ok',
         texto: `${codigoSos(sos._id)} asignada a ${
           socorrista ? `${socorrista.nombres} ${socorrista.apellidos}` : 'un socorrista'
-        }.`,
+        }. Queda ocupado hasta finalizar el rescate.`,
       });
       await cargar();
     } catch (error) {
@@ -155,7 +187,17 @@ export default function Solicitudes({ irA }) {
 
       await api.put(`/api/solicitudes/${sos._id}`, { estado_solicitud: nuevoEstado });
 
-      setMensaje({ tipo: 'ok', texto: `${codigoSos(sos._id)} actualizada a "${nuevoEstado}".` });
+      let texto = `${codigoSos(sos._id)} actualizada a "${nuevoEstado}".`;
+      if (nuevoEstado === 'Finalizado' && sos.socorrista_id) {
+        const otrasActivas = (
+          asignadasPorSocorrista.get(Number(sos.socorrista_id)) || []
+        ).filter((otra) => otra._id !== sos._id).length;
+        texto += otrasActivas
+          ? ' El socorrista sigue ocupado con otro rescate activo.'
+          : ' El socorrista vuelve a estar disponible.';
+      }
+
+      setMensaje({ tipo: 'ok', texto });
       await cargar();
     } catch (error) {
       setMensaje({ tipo: 'error', texto: mensajeError(error) });
@@ -315,7 +357,7 @@ export default function Solicitudes({ irA }) {
                           <select
                             className="campo-select text-xs"
                             value={seleccionSocorrista[sos._id] || ''}
-                            disabled={ocupado || socorristas.length === 0}
+                            disabled={ocupado || socorristasDisponibles.length === 0}
                             onChange={(evento) =>
                               setSeleccionSocorrista((prev) => ({
                                 ...prev,
@@ -326,20 +368,28 @@ export default function Solicitudes({ irA }) {
                             <option value="">
                               {socorristas.length === 0
                                 ? 'No hay socorristas'
-                                : 'Seleccionar socorrista...'}
+                                : socorristasDisponibles.length === 0
+                                  ? 'No hay socorristas disponibles'
+                                  : 'Seleccionar socorrista...'}
                             </option>
-                            {socorristas.map((socorrista) => (
+                            {socorristasDisponibles.map((socorrista) => (
                               <option key={socorrista._id} value={socorrista._id}>
                                 {socorrista.nombres} {socorrista.apellidos}
-                                {socorrista.estado_operativo
-                                  ? ` (${socorrista.estado_operativo})`
-                                  : ''}
                               </option>
                             ))}
                           </select>
+                          {socorristasDisponibles.length === 0 && socorristas.length > 0 && (
+                            <p className="text-[11px] font-medium text-orange-600">
+                              No hay socorristas disponibles: todos están atendiendo un rescate.
+                            </p>
+                          )}
                           <button
                             onClick={() => asignar(sos)}
-                            disabled={ocupado || !seleccionSocorrista[sos._id]}
+                            disabled={
+                              ocupado ||
+                              !seleccionSocorrista[sos._id] ||
+                              socorristasDisponibles.length === 0
+                            }
                             className="boton-asignar-rescate inline-flex items-center justify-center gap-1.5 disabled:opacity-50"
                           >
                             <Icono nombre="socorrista" className="w-3.5 h-3.5" />

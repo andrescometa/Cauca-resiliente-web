@@ -110,3 +110,44 @@ export const ESTADOS_SOLICITUD = [
   'Finalizado',
   'Cancelado',
 ];
+
+// Una solicitud sigue activa mientras el rescate no haya terminado.
+export const ESTADOS_SOS_ACTIVOS = ['Pendiente', 'En proceso', 'En camino', 'En el sitio'];
+
+export const sosActiva = (sos) => ESTADOS_SOS_ACTIVOS.includes(sos?.estado_solicitud);
+
+// Agrupa las solicitudes activas por socorrista. La API permite asignar
+// varias SOS a la misma persona, así que esta es la fuente de verdad para
+// saber si está ocupada.
+export const activasPorSocorrista = (solicitudes = []) => {
+  const mapa = new Map();
+  for (const sos of solicitudes) {
+    if (!sosActiva(sos) || !sos.socorrista_id) continue;
+    const id = Number(sos.socorrista_id);
+    if (!mapa.has(id)) mapa.set(id, []);
+    mapa.get(id).push(sos);
+  }
+  return mapa;
+};
+
+// Un socorrista solo puede atender un rescate a la vez.
+export const estaOcupado = (asignadasPorSocorrista, socorristaId) =>
+  (asignadasPorSocorrista.get(Number(socorristaId)) || []).length > 0;
+
+// Disponible = sin rescates activos y sin un estado operativo que lo bloquee.
+export const disponibleParaAsignar = (asignadasPorSocorrista, usuario) => {
+  if (estaOcupado(asignadasPorSocorrista, usuario?._id)) return false;
+  const estado = String(usuario?.estado_operativo || '').trim().toLowerCase();
+  return estado === '' || estado === 'disponible';
+};
+
+// Texto que ve el administrador en la tarjeta del socorrista.
+export const estadoRescate = (asignadas = []) => {
+  if (!asignadas.length) return 'Disponible';
+  if (asignadas.length > 1) {
+    return `Atendiendo ${asignadas.length} rescates`;
+  }
+  return asignadas[0].estado_solicitud === 'En el sitio'
+    ? 'Atendiendo un rescate'
+    : 'En camino a un rescate';
+};

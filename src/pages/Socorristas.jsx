@@ -1,7 +1,10 @@
 import { useEffect, useMemo, useState } from 'react';
 import {
+  activasPorSocorrista,
   api,
+  disponibleParaAsignar,
   esSocorrista,
+  estadoRescate,
   mensajeError,
   nombreRol,
   ROLES,
@@ -9,8 +12,6 @@ import {
   telefonoWhatsApp,
 } from '../api';
 import Icono from '../components/Icono';
-
-const ESTADOS_ACTIVOS = new Set(['Pendiente', 'En proceso', 'En camino', 'En el sitio']);
 
 export default function Socorristas({ irA }) {
   const [usuarios, setUsuarios] = useState([]);
@@ -42,17 +43,10 @@ export default function Socorristas({ irA }) {
     cargar();
   }, []);
 
-  const asignadasPorSocorrista = useMemo(() => {
-    const mapa = new Map();
-    for (const sos of solicitudes) {
-      if (!ESTADOS_ACTIVOS.has(sos.estado_solicitud)) continue;
-      if (!sos.socorrista_id) continue;
-      const id = Number(sos.socorrista_id);
-      if (!mapa.has(id)) mapa.set(id, []);
-      mapa.get(id).push(sos);
-    }
-    return mapa;
-  }, [solicitudes]);
+  const asignadasPorSocorrista = useMemo(
+    () => activasPorSocorrista(solicitudes),
+    [solicitudes]
+  );
 
   const lista = useMemo(() => {
     const texto = busqueda.trim().toLowerCase();
@@ -64,8 +58,8 @@ export default function Socorristas({ irA }) {
     });
   }, [usuarios, busqueda]);
 
-  const disponibles = usuarios.filter(
-    (usuario) => String(usuario.estado_operativo || '').toLowerCase() === 'disponible'
+  const disponibles = usuarios.filter((usuario) =>
+    disponibleParaAsignar(asignadasPorSocorrista, usuario)
   ).length;
 
   const enServicio = usuarios.filter(
@@ -173,8 +167,11 @@ export default function Socorristas({ irA }) {
         <div className="grid grid-cols-1 gap-4 lg:grid-cols-2 2xl:grid-cols-3">
           {lista.map((socorrista) => {
             const asignadas = asignadasPorSocorrista.get(Number(socorrista._id)) || [];
-            const disponible =
-              String(socorrista.estado_operativo || '').toLowerCase() === 'disponible';
+            const ocupado = asignadas.length > 0;
+            const estadoActual = estadoRescate(asignadas);
+            const estadoOperativo = String(socorrista.estado_operativo || '').trim();
+            const disponible = disponibleParaAsignar(asignadasPorSocorrista, socorrista);
+            const textoEstado = ocupado ? estadoActual : estadoOperativo || 'Disponible';
             const whatsapp = telefonoWhatsApp(socorrista.telefono);
             const mensajeWhatsApp = encodeURIComponent(
               `Hola ${socorrista.nombres || ''}, te contactamos desde el centro de control de Cauca Resiliente.`
@@ -193,12 +190,20 @@ export default function Socorristas({ irA }) {
                         {socorrista.nombres} {socorrista.apellidos}
                       </p>
                       <p className="truncate text-xs text-gray-500">{socorrista.email}</p>
-                      <div className="mt-1 flex items-center gap-2">
+                      <div className="mt-1 flex flex-wrap items-center gap-2">
                         <span className={disponible ? 'insignia-disponible' : 'insignia-ocupado'}>
-                          {socorrista.estado_operativo || 'Sin estado'}
+                          {textoEstado}
                         </span>
-                        <span className="text-[11px] text-gray-400">
-                          {asignadas.length} SOS activa{asignadas.length === 1 ? '' : 's'}
+                        <span
+                          className={`text-[11px] ${
+                            ocupado ? 'font-semibold text-orange-600' : 'text-gray-400'
+                          }`}
+                        >
+                          {ocupado
+                            ? `${asignadas.length} rescate${
+                                asignadas.length === 1 ? '' : 's'
+                              } activo${asignadas.length === 1 ? '' : 's'}`
+                            : 'Sin rescates activos'}
                         </span>
                       </div>
                     </div>
@@ -248,11 +253,25 @@ export default function Socorristas({ irA }) {
                   </div>
                 )}
 
+                {asignadas.length > 1 && (
+                  <p className="aviso-socorrista">
+                    Tiene {asignadas.length} rescates activos por asignaciones anteriores. Finaliza
+                    los demás para liberarlo.
+                  </p>
+                )}
+
                 <div className="mt-4 flex flex-wrap gap-2 border-t border-gray-100 pt-4">
-                  <button onClick={() => irA('solicitudes')} className="boton-primario">
-                    <Icono nombre="solicitudes" className="w-4 h-4" />
-                    Asignar rescate
-                  </button>
+                  {ocupado ? (
+                    <span className="boton-socorrista-ocupado" title="Solo puede atender un rescate a la vez">
+                      <Icono nombre="ambulancia" className="w-4 h-4" />
+                      {estadoActual}
+                    </span>
+                  ) : (
+                    <button onClick={() => irA('solicitudes')} className="boton-primario">
+                      <Icono nombre="solicitudes" className="w-4 h-4" />
+                      Asignar rescate
+                    </button>
+                  )}
                   {socorrista.telefono && (
                     <a href={`tel:${socorrista.telefono}`} className="boton-contorno">
                       <Icono nombre="telefono" className="w-4 h-4" />
