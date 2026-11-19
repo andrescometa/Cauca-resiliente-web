@@ -1,109 +1,281 @@
-import { useState, useEffect } from 'react';
-import axios from 'axios';
+import { useEffect, useMemo, useState } from 'react';
+import {
+  api,
+  esSocorrista,
+  mensajeError,
+  nombreRol,
+  ROLES,
+  rolVisible,
+  telefonoWhatsApp,
+} from '../api';
+import Icono from '../components/Icono';
 
-export default function Socorristas() {
-  const [socorristas, setSocorristas] = useState([]);
+const ESTADOS_ACTIVOS = new Set(['Pendiente', 'En proceso', 'En camino', 'En el sitio']);
+
+export default function Socorristas({ irA }) {
+  const [usuarios, setUsuarios] = useState([]);
+  const [solicitudes, setSolicitudes] = useState([]);
   const [cargando, setCargando] = useState(true);
-  const [seleccionado, setSeleccionado] = useState(null);
+  const [busqueda, setBusqueda] = useState('');
+  const [guardando, setGuardando] = useState(null);
+  const [mensaje, setMensaje] = useState(null);
+
+  const cargar = async () => {
+    const [resUsuarios, resSolicitudes] = await Promise.allSettled([
+      api.get('/api/usuarios/todos'),
+      api.get('/api/solicitudes'),
+    ]);
+
+    if (resUsuarios.status === 'fulfilled') {
+      setUsuarios((resUsuarios.value.data || []).filter(esSocorrista));
+    }
+    if (resSolicitudes.status === 'fulfilled') {
+      setSolicitudes(resSolicitudes.value.data?.solicitudes || []);
+    }
+
+    const fallos = [resUsuarios, resSolicitudes].filter((r) => r.status === 'rejected');
+    if (fallos.length) setMensaje({ tipo: 'error', texto: mensajeError(fallos[0].reason) });
+    setCargando(false);
+  };
 
   useEffect(() => {
-    axios.get('http://localhost:3000/api/usuarios/todos')
-      .then((respuesta) => {
-        // EL FILTRO MÁGICO: Solo dejamos pasar a los que tienen rol_id === 3
-        const soloSocorristas = respuesta.data.filter(user => user.rol_id === 3);
-        setSocorristas(soloSocorristas);
-        if (soloSocorristas.length > 0) setSeleccionado(soloSocorristas[0]);
-        setCargando(false);
-      })
-      .catch((error) => {
-        console.error("Error al traer socorristas:", error);
-        setCargando(false);
-      });
+    cargar();
   }, []);
 
-  if (cargando) return <div className="text-center mt-10 text-gray-500">Cargando personal de socorro...</div>;
+  const asignadasPorSocorrista = useMemo(() => {
+    const mapa = new Map();
+    for (const sos of solicitudes) {
+      if (!ESTADOS_ACTIVOS.has(sos.estado_solicitud)) continue;
+      if (!sos.socorrista_id) continue;
+      const id = Number(sos.socorrista_id);
+      if (!mapa.has(id)) mapa.set(id, []);
+      mapa.get(id).push(sos);
+    }
+    return mapa;
+  }, [solicitudes]);
+
+  const lista = useMemo(() => {
+    const texto = busqueda.trim().toLowerCase();
+    return usuarios.filter((usuario) => {
+      if (!texto) return true;
+      return [usuario.nombres, usuario.apellidos, usuario.email, usuario.telefono]
+        .filter(Boolean)
+        .some((valor) => String(valor).toLowerCase().includes(texto));
+    });
+  }, [usuarios, busqueda]);
+
+  const disponibles = usuarios.filter(
+    (usuario) => String(usuario.estado_operativo || '').toLowerCase() === 'disponible'
+  ).length;
+
+  const enServicio = usuarios.filter(
+    (usuario) => (asignadasPorSocorrista.get(Number(usuario._id)) || []).length > 0
+  ).length;
+
+  const cambiarRol = async (socorrista, nuevoRol) => {
+    const rolId = Number(nuevoRol);
+    if (rolId === rolVisible(socorrista)) return;
+
+    const confirmar = window.confirm(
+      `¿Cambiar el rol de ${socorrista.nombres} a ${nombreRol(rolId)}? Dejará de aparecer como socorrista.`
+    );
+    if (!confirmar) return;
+
+    setGuardando(socorrista._id);
+    setMensaje(null);
+    try {
+      await api.put(`/api/usuarios/${socorrista._id}/rol`, { rol_id: rolId });
+      setMensaje({
+        tipo: 'ok',
+        texto: `${socorrista.nombres} ahora tiene el rol ${nombreRol(rolId)}.`,
+      });
+      setUsuarios((prev) => prev.filter((item) => item._id !== socorrista._id));
+    } catch (error) {
+      setMensaje({ tipo: 'error', texto: mensajeError(error) });
+    } finally {
+      setGuardando(null);
+    }
+  };
+
+  if (cargando) {
+    return <div className="mt-10 text-center text-gray-500">Cargando socorristas...</div>;
+  }
 
   return (
-    <div className="flex gap-6 h-full">
-      
-      {/* TABLA DE SOCORRISTAS */}
-      <div className="contenedor-tabla-usuarios flex-1">
-        <div className="flex justify-between items-center mb-4">
-          <h3 className="text-xl font-bold text-gray-800">Personal de Socorro Activo</h3>
-          <span className="bg-green-100 text-green-700 px-3 py-1 rounded-full text-xs font-bold border border-green-200">
-            {socorristas.length} Registrados
-          </span>
+    <div>
+      {mensaje && (
+        <div className={`${mensaje.tipo === 'ok' ? 'mensaje-ok' : 'mensaje-error'} mb-4`}>
+          {mensaje.texto}
         </div>
-        
-        <div className="overflow-x-auto">
-          <table className="w-full text-left border-collapse">
-            <thead>
-              <tr className="tabla-usuarios-cabecera">
-                <th className="celda-tabla-usuarios">Nombre Completo</th>
-                <th className="celda-tabla-usuarios">Documento</th>
-                <th className="celda-tabla-usuarios">Ciudad Base</th>
-                <th className="celda-tabla-usuarios">Estado</th>
-              </tr>
-            </thead>
-            <tbody>
-              {socorristas.map((user) => (
-                <tr 
-                  key={user._id} 
-                  className={`fila-usuario-tabla ${seleccionado?._id === user._id ? 'fila-usuario-seleccionada' : ''}`}
-                  onClick={() => setSeleccionado(user)}
-                >
-                  <td className="celda-tabla-usuarios font-medium text-gray-800">{user.nombres} {user.apellidos}</td>
-                  <td className="celda-tabla-usuarios text-gray-600">{user.identificacion}</td>
-                  <td className="celda-tabla-usuarios text-gray-600">{user.ciudad || 'Popayán'}</td>
-                  <td className="celda-tabla-usuarios">
-                    <span className="bg-green-100 text-green-700 px-2 py-1 rounded-md text-xs font-bold">
-                      Disponible
-                    </span>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-          
-          {socorristas.length === 0 && (
-            <p className="text-gray-500 text-center mt-6">No hay socorristas registrados. Ve a la pestaña "Usuarios" para ascender a alguien.</p>
-          )}
-        </div>
-      </div>
+      )}
 
-      {/* PANEL DE DETALLE DEL SOCORRISTA */}
-      <div className="panel-detalle-usuario">
-        <h3 className="text-lg font-bold text-gray-800 mb-4">Perfil del Rescatista</h3>
-        
-        {seleccionado ? (
-          <div>
-            <div className="flex items-center gap-3 mb-6">
-              <div className="avatar-usuario-iniciales bg-red-600">
-                {seleccionado.nombres.charAt(0)}{seleccionado.apellidos.charAt(0)}
-              </div>
-              <div>
-                <p className="font-bold text-gray-800">{seleccionado.nombres} {seleccionado.apellidos}</p>
-                <span className="text-xs font-bold text-red-600 uppercase">Socorrista</span>
-              </div>
-            </div>
-
-            <div className="space-y-4 text-sm">
-              <div>
-                <p className="titulo-seccion-detalle">Contacto</p>
-                <p className="fila-dato-usuario"><span className="text-gray-600">Teléfono</span> <span className="font-medium">{seleccionado.telefono || 'No registra'}</span></p>
-                <p className="fila-dato-usuario"><span className="text-gray-600">Correo</span> <span className="font-medium text-xs">{seleccionado.email}</span></p>
-              </div>
-
-              <div>
-                <p className="titulo-seccion-detalle">Información Médica</p>
-                <p className="fila-dato-usuario"><span className="text-gray-600">Tipo de sangre</span> <span className="font-bold text-red-600">{seleccionado.tipo_sangre || 'No registra'}</span></p>
-              </div>
+      <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
+        <div className="flex flex-wrap gap-3">
+          <div className="tarjeta-panel flex items-center gap-3 px-4 py-3">
+            <span className="icono-tarjeta bg-green-100 text-green-700">
+              <Icono nombre="socorrista" className="w-5 h-5" />
+            </span>
+            <div>
+              <p className="text-xs text-gray-500">Total</p>
+              <p className="text-xl font-bold text-gray-800">{usuarios.length}</p>
             </div>
           </div>
-        ) : (
-          <p className="text-gray-500 text-sm">Selecciona un socorrista de la tabla.</p>
-        )}
+          <div className="tarjeta-panel flex items-center gap-3 px-4 py-3">
+            <span className="icono-tarjeta bg-emerald-100 text-emerald-700">
+              <Icono nombre="check" className="w-5 h-5" />
+            </span>
+            <div>
+              <p className="text-xs text-gray-500">Disponibles</p>
+              <p className="text-xl font-bold text-emerald-600">{disponibles}</p>
+            </div>
+          </div>
+          <div className="tarjeta-panel flex items-center gap-3 px-4 py-3">
+            <span className="icono-tarjeta bg-blue-100 text-blue-700">
+              <Icono nombre="ambulancia" className="w-5 h-5" />
+            </span>
+            <div>
+              <p className="text-xs text-gray-500">En servicio</p>
+              <p className="text-xl font-bold text-blue-600">{enServicio}</p>
+            </div>
+          </div>
+        </div>
+
+        <div className="flex items-center gap-2">
+          <div className="relative">
+            <Icono
+              nombre="buscar"
+              className="pointer-events-none absolute left-3 top-1/2 w-4 h-4 -translate-y-1/2 text-gray-400"
+            />
+            <input
+              type="search"
+              placeholder="Buscar socorrista..."
+              className="campo-busqueda w-64 pl-9"
+              value={busqueda}
+              onChange={(evento) => setBusqueda(evento.target.value)}
+            />
+          </div>
+          <button onClick={cargar} className="boton-secundario">
+            <Icono nombre="actualizar" className="w-3.5 h-3.5" />
+            Recargar
+          </button>
+        </div>
       </div>
+
+      {lista.length === 0 ? (
+        <div className="tarjeta-panel text-center text-gray-500">
+          <p>No hay socorristas registrados.</p>
+          <button onClick={() => irA('usuarios')} className="boton-primario mt-3">
+            <Icono nombre="usuarios" className="w-4 h-4" />
+            Asignar rol de socorrista
+          </button>
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 gap-4 lg:grid-cols-2 2xl:grid-cols-3">
+          {lista.map((socorrista) => {
+            const asignadas = asignadasPorSocorrista.get(Number(socorrista._id)) || [];
+            const disponible =
+              String(socorrista.estado_operativo || '').toLowerCase() === 'disponible';
+            const whatsapp = telefonoWhatsApp(socorrista.telefono);
+            const mensajeWhatsApp = encodeURIComponent(
+              `Hola ${socorrista.nombres || ''}, te contactamos desde el centro de control de Cauca Resiliente.`
+            );
+
+            return (
+              <article key={socorrista._id} className="tarjeta-socorrista">
+                <div className="flex items-start justify-between gap-3">
+                  <div className="flex min-w-0 items-center gap-3">
+                    <div className="avatar-socorrista">
+                      {(socorrista.nombres || 'S').charAt(0).toUpperCase()}
+                      {(socorrista.apellidos || '').charAt(0).toUpperCase()}
+                    </div>
+                    <div className="min-w-0">
+                      <p className="truncate font-bold text-gray-800">
+                        {socorrista.nombres} {socorrista.apellidos}
+                      </p>
+                      <p className="truncate text-xs text-gray-500">{socorrista.email}</p>
+                      <div className="mt-1 flex items-center gap-2">
+                        <span className={disponible ? 'insignia-disponible' : 'insignia-ocupado'}>
+                          {socorrista.estado_operativo || 'Sin estado'}
+                        </span>
+                        <span className="text-[11px] text-gray-400">
+                          {asignadas.length} SOS activa{asignadas.length === 1 ? '' : 's'}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+
+                  <select
+                    value={rolVisible(socorrista)}
+                    disabled={guardando === socorrista._id}
+                    onChange={(evento) => cambiarRol(socorrista, evento.target.value)}
+                    className="select-rol-mini"
+                    title="Cambiar rol"
+                  >
+                    {ROLES.map((rol) => (
+                      <option key={rol.id} value={rol.id}>
+                        {rol.nombre}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div className="mt-4 grid grid-cols-1 gap-1.5 sm:grid-cols-2">
+                  <p className="mini-dato">
+                    <Icono nombre="telefono" className="w-3.5 h-3.5 shrink-0" />
+                    {socorrista.telefono || 'Sin teléfono'}
+                  </p>
+                  <p className="mini-dato">
+                    <Icono nombre="ubicacion" className="w-3.5 h-3.5 shrink-0" />
+                    {socorrista.ciudad || 'Sin ciudad'}
+                  </p>
+                  <p className="mini-dato">
+                    <Icono nombre="corazon" className="w-3.5 h-3.5 shrink-0" />
+                    {socorrista.tipo_sangre || 'Sin tipo de sangre'}
+                  </p>
+                  <p className="mini-dato">
+                    <Icono nombre="campus" className="w-3.5 h-3.5 shrink-0" />
+                    {socorrista.rol || 'Socorrista'}
+                  </p>
+                </div>
+
+                {asignadas.length > 0 && (
+                  <div className="lista-sos-asignadas">
+                    {asignadas.map((sos) => (
+                      <span key={sos._id} className="chip-sos">
+                        SOS-{String(sos._id).padStart(4, '0')} · {sos.estado_solicitud}
+                      </span>
+                    ))}
+                  </div>
+                )}
+
+                <div className="mt-4 flex flex-wrap gap-2 border-t border-gray-100 pt-4">
+                  <button onClick={() => irA('solicitudes')} className="boton-primario">
+                    <Icono nombre="solicitudes" className="w-4 h-4" />
+                    Asignar rescate
+                  </button>
+                  {socorrista.telefono && (
+                    <a href={`tel:${socorrista.telefono}`} className="boton-contorno">
+                      <Icono nombre="telefono" className="w-4 h-4" />
+                      Llamar
+                    </a>
+                  )}
+                  {whatsapp && (
+                    <a
+                      href={`https://wa.me/${whatsapp}?text=${mensajeWhatsApp}`}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="boton-whatsapp"
+                    >
+                      <Icono nombre="whatsapp" className="w-4 h-4" />
+                      WhatsApp
+                    </a>
+                  )}
+                </div>
+              </article>
+            );
+          })}
+        </div>
+      )}
     </div>
   );
 }
