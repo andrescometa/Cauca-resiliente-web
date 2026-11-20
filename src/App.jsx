@@ -25,7 +25,7 @@ const TITULOS = {
   },
   usuarios: {
     titulo: 'Gestión de usuarios',
-    descripcion: 'Ciudadanos, estudiantes y administradores',
+    descripcion: 'Ciudadanos y administradores',
   },
   socorristas: {
     titulo: 'Socorristas',

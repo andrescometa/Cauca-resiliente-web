@@ -7,7 +7,7 @@ import {
   estadoRescate,
   mensajeError,
   nombreRol,
-  ROLES,
+  ROLES_ASIGNABLES,
   rolVisible,
   telefonoWhatsApp,
 } from '../api';
@@ -216,7 +216,7 @@ export default function Socorristas({ irA }) {
                     className="select-rol-mini"
                     title="Cambiar rol"
                   >
-                    {ROLES.map((rol) => (
+                    {ROLES_ASIGNABLES.map((rol) => (
                       <option key={rol.id} value={rol.id}>
                         {rol.nombre}
                       </option>

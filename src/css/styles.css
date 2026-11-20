@@ -71,7 +71,11 @@
 }
 
 .avatar-usuario-iniciales {
-  @apply w-12 h-12 bg-[#0f172a] rounded-full flex items-center justify-center text-white font-bold text-xl;
+  @apply flex h-12 w-12 shrink-0 aspect-square items-center justify-center rounded-full bg-[#0f172a] text-xl font-bold leading-none text-white select-none;
+}
+
+.avatar-usuario-tabla {
+  @apply h-9 w-9 text-[13px];
 }
 
 .titulo-seccion-detalle {
@@ -167,11 +171,11 @@
 }
 
 .chip-filtro {
-  @apply bg-white border border-gray-200 text-gray-600 px-3 py-1.5 rounded-full text-xs font-bold hover:bg-gray-50 transition;
+  @apply bg-white border border-gray-200 text-gray-600 px-3 py-1.5 rounded-full text-xs font-bold hover:bg-gray-50 hover:text-gray-900 transition;
 }
 
 .chip-filtro-activo {
-  @apply bg-[#0f172a] text-white border-[#0f172a];
+  @apply bg-[#0f172a] text-white border-[#0f172a] hover:bg-gray-800 hover:text-white hover:border-gray-800;
 }
 
 .insignia-disponible {

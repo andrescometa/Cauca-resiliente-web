@@ -129,6 +129,20 @@ const TRAZOS = {
       <path d="M6 12v5c0 1.7 2.7 3 6 3s6-1.3 6-3v-5" />
     </>
   ),
+  ojo: (
+    <>
+      <path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7Z" />
+      <circle cx="12" cy="12" r="3" />
+    </>
+  ),
+  'ojo-cerrado': (
+    <>
+      <path d="m3 3 18 18" />
+      <path d="M10.6 5.1A10.9 10.9 0 0 1 12 5c6.5 0 10 7 10 7a13.2 13.2 0 0 1-2.1 3" />
+      <path d="M6.6 6.6C3.6 8.7 2 12 2 12s3.5 7 10 7a10.9 10.9 0 0 0 5.4-1.4" />
+      <path d="M9.9 9.9a3 3 0 0 0 4.2 4.2" />
+    </>
+  ),
 };
 
 export default function Icono({ nombre, className = 'w-5 h-5', strokeWidth = 1.8 }) {

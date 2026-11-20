@@ -1,9 +1,11 @@
 import { useState } from 'react';
 import { api, guardarSesion } from '../api';
+import Icono from '../components/Icono';
 
 export default function Login({ alIniciarSesion }) {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [verPassword, setVerPassword] = useState(false);
   const [error, setError] = useState('');
   const [cargando, setCargando] = useState(false);
 
@@ -104,15 +106,26 @@ export default function Login({ alIniciarSesion }) {
 
             <div>
               <label className="text-sm font-bold text-gray-700 mb-1 block">Contraseña</label>
-              <input
-                type="password"
-                required
-                placeholder="••••••••"
-                className="w-full px-4 py-3 rounded-lg border border-gray-300 focus:outline-none focus:border-[#0f172a] focus:ring-1 focus:ring-[#0f172a] transition"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                autoComplete="current-password"
-              />
+              <div className="relative">
+                <input
+                  type={verPassword ? 'text' : 'password'}
+                  required
+                  placeholder="••••••••"
+                  className="w-full px-4 py-3 pr-12 rounded-lg border border-gray-300 focus:outline-none focus:border-[#0f172a] focus:ring-1 focus:ring-[#0f172a] transition"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  autoComplete="current-password"
+                />
+                <button
+                  type="button"
+                  onClick={() => setVerPassword((valor) => !valor)}
+                  className="absolute right-2 top-1/2 flex h-9 w-9 -translate-y-1/2 items-center justify-center rounded-lg text-gray-400 transition hover:bg-gray-100 hover:text-gray-700 focus:outline-none focus:ring-2 focus:ring-[#0f172a]/30"
+                  aria-label={verPassword ? 'Ocultar contraseña' : 'Mostrar contraseña'}
+                  title={verPassword ? 'Ocultar contraseña' : 'Mostrar contraseña'}
+                >
+                  <Icono nombre={verPassword ? 'ojo-cerrado' : 'ojo'} className="w-5 h-5" />
+                </button>
+              </div>
             </div>
 
             <button

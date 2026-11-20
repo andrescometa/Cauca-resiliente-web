@@ -86,7 +86,6 @@ export default function Panel({ irA }) {
       disponibleParaAsignar(asignadasPorSocorrista, usuario)
     );
     const ciudadanos = usuarios.filter((usuario) => rolVisible(usuario) === 1);
-    const estudiantes = usuarios.filter((usuario) => rolVisible(usuario) === 2);
     const admins = usuarios.filter(esAdmin);
     const conUbicacion = activas.filter(
       (sos) => Number.isFinite(Number(sos.latitud)) && Number.isFinite(Number(sos.longitud))
@@ -102,7 +101,6 @@ export default function Panel({ irA }) {
       alertasActivas,
       disponibles,
       ciudadanos,
-      estudiantes,
       admins,
       conUbicacion,
     };
@@ -132,7 +130,7 @@ export default function Panel({ irA }) {
       color: 'text-gray-800',
       icono: 'usuarios',
       fondoIcono: 'bg-slate-100 text-slate-700',
-      detalle: `${resumen.ciudadanos.length} ciudadanos · ${resumen.estudiantes.length} estudiantes`,
+      detalle: `${resumen.ciudadanos.length} ciudadanos · ${resumen.admins.length} administradores`,
       onClick: () => irA('usuarios'),
     },
     {

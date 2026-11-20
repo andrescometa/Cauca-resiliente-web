@@ -5,7 +5,7 @@ import {
   leerSesion,
   mensajeError,
   nombreRol,
-  ROLES,
+  ROLES_ASIGNABLES,
   rolVisible,
 } from '../api';
 import Icono from '../components/Icono';
@@ -129,7 +129,7 @@ export default function Usuarios() {
           >
             Todos ({usuarios.length})
           </button>
-          {ROLES.filter((rol) => rol.id !== 3).map((rol) => (
+          {ROLES_ASIGNABLES.filter((rol) => rol.id !== 3).map((rol) => (
             <button
               key={rol.id}
               onClick={() => setFiltroRol(String(rol.id))}
@@ -195,7 +195,7 @@ export default function Usuarios() {
                   >
                     <td className="celda-tabla-usuarios font-medium text-gray-800">
                       <div className="flex items-center gap-3">
-                        <div className="avatar-usuario-iniciales h-9 w-9 text-sm">
+                        <div className="avatar-usuario-iniciales avatar-usuario-tabla">
                           {(usuario.nombres || 'U').charAt(0).toUpperCase()}
                           {(usuario.apellidos || '').charAt(0).toUpperCase()}
                         </div>
@@ -227,9 +227,9 @@ export default function Usuarios() {
                         disabled={guardando === usuario._id}
                         onChange={(evento) => cambiarRol(usuario, evento.target.value)}
                         onClick={(evento) => evento.stopPropagation()}
-                        className="block w-full rounded-md border border-gray-300 bg-gray-50 p-1 text-xs text-gray-900 focus:border-blue-500 focus:ring-blue-500 disabled:opacity-50"
+                        className="block w-full min-w-[10.5rem] rounded-md border border-gray-300 bg-gray-50 px-2 py-1.5 text-xs text-gray-900 focus:border-blue-500 focus:ring-blue-500 disabled:opacity-50"
                       >
-                        {ROLES.map((rol) => (
+                        {ROLES_ASIGNABLES.map((rol) => (
                           <option key={rol.id} value={rol.id}>
                             {rol.nombre}
                           </option>

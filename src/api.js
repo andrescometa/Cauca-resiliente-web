@@ -12,7 +12,7 @@ export const api = axios.create({
 
 // Adjunta el token JWT en todas las peticiones (necesario para cambiar roles).
 api.interceptors.request.use((config) => {
-  const token = localStorage.getItem('cauca_token');
+  const token = sessionStorage.getItem('cauca_token');
   if (token) {
     config.headers = config.headers || {};
     config.headers.Authorization = `Bearer ${token}`;
@@ -21,15 +21,22 @@ api.interceptors.request.use((config) => {
 });
 
 const CLAVE_SESION = 'cauca_sesion_admin';
+const CLAVE_TOKEN = 'cauca_token';
 
+// La sesión vive en sessionStorage: se conserva al recargar la página, pero se
+// borra al cerrar la pestaña o el navegador. Así nadie queda con el panel
+// abierto en un equipo compartido.
 export function guardarSesion(token, usuario) {
-  localStorage.setItem('cauca_token', token);
-  localStorage.setItem(CLAVE_SESION, JSON.stringify({ token, usuario }));
+  sessionStorage.setItem(CLAVE_TOKEN, token);
+  sessionStorage.setItem(CLAVE_SESION, JSON.stringify({ token, usuario }));
+  // Limpiamos sesiones antiguas guardadas de forma permanente.
+  localStorage.removeItem(CLAVE_TOKEN);
+  localStorage.removeItem(CLAVE_SESION);
 }
 
 export function leerSesion() {
   try {
-    const guardada = localStorage.getItem(CLAVE_SESION);
+    const guardada = sessionStorage.getItem(CLAVE_SESION);
     if (!guardada) return null;
     const sesion = JSON.parse(guardada);
     if (!sesion?.token || !sesion?.usuario) return null;
@@ -40,8 +47,10 @@ export function leerSesion() {
 }
 
 export function borrarSesion() {
+  sessionStorage.removeItem(CLAVE_SESION);
+  sessionStorage.removeItem(CLAVE_TOKEN);
   localStorage.removeItem(CLAVE_SESION);
-  localStorage.removeItem('cauca_token');
+  localStorage.removeItem(CLAVE_TOKEN);
 }
 
 export function mensajeError(error) {
@@ -66,13 +75,20 @@ export const ROLES = [
 export const nombreRol = (rolId) =>
   ROLES.find((rol) => rol.id === Number(rolId))?.nombre || 'Sin rol';
 
+// La API guarda toda cuenta con rol_id 2 con el texto "socorrista", así que
+// "Estudiante" no se conserva: al recargar aparece como Socorrista. Para no
+// ofrecer un rol que termina convertido en otro, no se permite asignarlo.
+export const ROLES_ASIGNABLES = ROLES.filter((rol) => rol.id !== 2);
+
 const textoRol = (usuario) => String(usuario?.rol || '').trim().toLowerCase();
 
-// La API guarda el texto del rol con su propia numeración. Didier, por
-// ejemplo, es socorrista con rol_id 2 y texto "socorrista"; por eso miramos
-// también el texto para no perder los usuarios que ya existen.
+// La API guarda las cuentas de socorrista con rol_id 2 o 3 y, en el caso de 2,
+// con el texto "socorrista". Por eso "Estudiante" (rol_id 2) termina siempre
+// convertido en Socorrista y no se ofrece como rol asignable.
 export const esSocorrista = (usuario) =>
-  Number(usuario?.rol_id) === 3 || textoRol(usuario) === 'socorrista';
+  Number(usuario?.rol_id) === 2 ||
+  Number(usuario?.rol_id) === 3 ||
+  textoRol(usuario) === 'socorrista';
 
 export const esAdmin = (usuario) =>
   Number(usuario?.rol_id) === 4 ||
@@ -83,7 +99,6 @@ export const esAdmin = (usuario) =>
 export const rolVisible = (usuario) => {
   if (esAdmin(usuario)) return 4;
   if (esSocorrista(usuario)) return 3;
-  if (Number(usuario?.rol_id) === 2) return 2;
   return 1;
 };
 
